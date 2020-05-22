@@ -1,13 +1,18 @@
 package com.jinasoft.midasconexample;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
+import android.os.Build;
 import android.os.IBinder;
 
-
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 
 import com.hanvitsi.midascon.Beacon;
@@ -19,6 +24,9 @@ public class EmergencyService extends Service implements EmergencyCallback {
 
 	public static final String TAG = EmergencyService.class.getSimpleName();
 	public static final String ACTION_STATUS = TAG + ".ACTION_STATUS";
+
+	private String CHANNEL_NAME = "High priority channel";
+	private String CHANNEL_ID = "com.example.notifications" + CHANNEL_NAME;
 
 	static boolean run;
 
@@ -76,7 +84,9 @@ public class EmergencyService extends Service implements EmergencyCallback {
 
 	@Override
 	public void onEmergencyCallback(int status, Beacon beacon) {
-		showNotification(beacon);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			showNotification(beacon);
+		}
 	}
 
 	private void sendStatus(boolean status) {
@@ -86,10 +96,20 @@ public class EmergencyService extends Service implements EmergencyCallback {
 	}
 
 	// 응급신호 알림
+	@RequiresApi(api = Build.VERSION_CODES.O)
 	private void showNotification(Beacon beacon) {
+		//오레오 (API26)이상부터 채널을 추가해야 notification 사용 가능
+		NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+		notificationChannel.enableLights(true);
+		notificationChannel.enableVibration(true);
+		notificationChannel.setDescription("this is the description of the channel.");
+		notificationChannel.setLightColor(Color.RED);
+		notificationChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+		NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+		manager.createNotificationChannel(notificationChannel);
+
 		if (beacon == null)
 			return;
-
 		int notify = beacon.getId().hashCode();
 		Intent intent = new Intent(getApplicationContext(), MainActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -99,7 +119,7 @@ public class EmergencyService extends Service implements EmergencyCallback {
 		intent.putExtra("message", beacon.getId());
 		intent.putExtra("notify", notify);
 
-		NotificationCompat.Builder builder = new NotificationCompat.Builder(getBaseContext());
+		NotificationCompat.Builder builder = new NotificationCompat.Builder(getBaseContext(), CHANNEL_ID);
 		builder.setContentIntent(PendingIntent.getActivity(getApplicationContext(), notify, intent, PendingIntent.FLAG_UPDATE_CURRENT));
 
 		builder.setPriority(NotificationCompat.PRIORITY_HIGH);
@@ -117,9 +137,8 @@ public class EmergencyService extends Service implements EmergencyCallback {
 		style.setBigContentTitle(" 응급 신호 발생");
 		style.setSummaryText(getString(R.string.app_name));
 
-		NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
 		manager.notify(notify, style.build());
 	}
+
 
 }
